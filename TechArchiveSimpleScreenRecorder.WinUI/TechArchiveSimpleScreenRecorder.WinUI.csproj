@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <RootNamespace>TechArchiveSimpleScreenRecorder.WinUI</RootNamespace>
+    <AssemblyName>TechArchiveSimpleScreenRecorder</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <WindowsSdkPackageVersion>10.0.19041.38</WindowsSdkPackageVersion>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260317003" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.6584" PrivateAssets="all" />
+    <PackageReference Include="Velopack" Version="0.0.1298" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\TechArchiveSimpleScreenRecorder\latest-version.txt" Link="latest-version.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\TechArchiveSimpleScreenRecorder\update-url.txt" Link="update-url.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\TechArchiveSimpleScreenRecorder\installer-url.txt" Link="installer-url.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="CopyNativeCore" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <NativeArtifacts Include="..\TechArchiveSimpleScreenRecorder\build\$(Configuration)\TechArchiveSimpleScreenRecorder.Core.dll" />
+      <NativeArtifacts Include="..\TechArchiveSimpleScreenRecorder\build\$(Configuration)\TechArchiveSimpleScreenRecorder.Core.lib" Condition="Exists('..\TechArchiveSimpleScreenRecorder\build\$(Configuration)\TechArchiveSimpleScreenRecorder.Core.lib')" />
+      <NativeArtifacts Include="..\TechArchiveSimpleScreenRecorder\build\$(Configuration)\TechArchiveSimpleScreenRecorder.Core.pdb" Condition="Exists('..\TechArchiveSimpleScreenRecorder\build\$(Configuration)\TechArchiveSimpleScreenRecorder.Core.pdb')" />
+      <WinUIArtifacts Include="$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\App.xbf" Condition="Exists('$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\App.xbf')" />
+      <WinUIArtifacts Include="$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\MainWindow.xbf" Condition="Exists('$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\MainWindow.xbf')" />
+      <WinUIArtifacts Include="$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\$(AssemblyName).pri" Condition="Exists('$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\$(AssemblyName).pri')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NativeArtifacts)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'$(OutDir)' != ''" />
+    <Copy SourceFiles="@(NativeArtifacts)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'$(PublishDir)' != ''" />
+    <Copy SourceFiles="@(WinUIArtifacts)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'$(PublishDir)' != ''" />
+  </Target>
+</Project>
