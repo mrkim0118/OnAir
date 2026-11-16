@@ -8,6 +8,15 @@
 
 <p align="center">Author: <b>Manggdy</b></p>
 
+<p align="center"><b>English</b> | <a href="README.ko.md">한국어</a></p>
+
+## Download
+
+Get the latest installer from the [Releases](../../releases/latest) page:
+
+- `OnAir-Setup-<version>.exe`: installer (adds Desktop and Start menu shortcuts)
+- `OnAir-win-Portable.zip`: no installation needed; unzip and run `OnAir.exe`
+
 ## Features
 
 - **One-click recording**: a single Record / Stop button with a live timer.
