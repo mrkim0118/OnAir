@@ -14,9 +14,9 @@
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{2E8D688B-1454-4E7E-9B76-D53A6E9C1950}</ProjectGuid>
-    <RootNamespace>TechArchiveSimpleScreenRecorder</RootNamespace>
-    <ProjectName>TechArchiveSimpleScreenRecorder</ProjectName>
-    <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
+    <RootNamespace>OnAir</RootNamespace>
+    <ProjectName>OnAir</ProjectName>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -43,15 +43,19 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
+    <!-- Single source of truth for the app version (also read by Publish-Velopack.ps1). -->
+    <OnAirVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)latest-version.txt').Trim())</OnAirVersion>
+  </PropertyGroup>
+  <PropertyGroup>
     <OutDir>$(MSBuildThisFileDirectory)build\$(Configuration)\</OutDir>
     <IntDir>$(MSBuildThisFileDirectory)obj\$(Configuration)\</IntDir>
-    <TargetName>TechArchiveSimpleScreenRecorder</TargetName>
+    <TargetName>OnAir</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>UNICODE;_UNICODE;WIN32;_WINDOWS;NOMINMAX;WIN32_LEAN_AND_MEAN;_WIN32_WINNT=0x0A00;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>UNICODE;_UNICODE;WIN32;_WINDOWS;NOMINMAX;WIN32_LEAN_AND_MEAN;_WIN32_WINNT=0x0A00;ONAIR_VERSION="$(OnAirVersion)";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
@@ -60,17 +64,12 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>User32.lib;Gdi32.lib;Shell32.lib;Ole32.lib;Comctl32.lib;Comdlg32.lib;Winhttp.lib;Mfplat.lib;Mfreadwrite.lib;Mfuuid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>User32.lib;Gdi32.lib;Shell32.lib;Ole32.lib;Comctl32.lib;Comdlg32.lib;Winhttp.lib;Mfplat.lib;Mfreadwrite.lib;Mfuuid.lib;Gdiplus.lib;Dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ResourceCompile>
       <PreprocessorDefinitions>UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
-    <PostBuildEvent>
-      <Command>copy /Y "$(ProjectDir)latest-version.txt" "$(OutDir)" &gt;NUL
-if exist "$(ProjectDir)update-url.txt" copy /Y "$(ProjectDir)update-url.txt" "$(OutDir)" &gt;NUL
-if exist "$(ProjectDir)installer-url.txt" copy /Y "$(ProjectDir)installer-url.txt" "$(OutDir)" &gt;NUL</Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -78,7 +77,7 @@ if exist "$(ProjectDir)installer-url.txt" copy /Y "$(ProjectDir)installer-url.tx
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>UNICODE;_UNICODE;WIN32;NDEBUG;_WINDOWS;NOMINMAX;WIN32_LEAN_AND_MEAN;_WIN32_WINNT=0x0A00;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>UNICODE;_UNICODE;WIN32;NDEBUG;_WINDOWS;NOMINMAX;WIN32_LEAN_AND_MEAN;_WIN32_WINNT=0x0A00;ONAIR_VERSION="$(OnAirVersion)";%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <Optimization>MaxSpeed</Optimization>
@@ -96,17 +95,12 @@ if exist "$(ProjectDir)installer-url.txt" copy /Y "$(ProjectDir)installer-url.tx
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>User32.lib;Gdi32.lib;Shell32.lib;Ole32.lib;Comctl32.lib;Comdlg32.lib;Winhttp.lib;Mfplat.lib;Mfreadwrite.lib;Mfuuid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>User32.lib;Gdi32.lib;Shell32.lib;Ole32.lib;Comctl32.lib;Comdlg32.lib;Winhttp.lib;Mfplat.lib;Mfreadwrite.lib;Mfuuid.lib;Gdiplus.lib;Dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ResourceCompile>
       <PreprocessorDefinitions>UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
-    <PostBuildEvent>
-      <Command>copy /Y "$(ProjectDir)latest-version.txt" "$(OutDir)" &gt;NUL
-if exist "$(ProjectDir)update-url.txt" copy /Y "$(ProjectDir)update-url.txt" "$(OutDir)" &gt;NUL
-if exist "$(ProjectDir)installer-url.txt" copy /Y "$(ProjectDir)installer-url.txt" "$(OutDir)" &gt;NUL</Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
@@ -128,5 +122,12 @@ if exist "$(ProjectDir)installer-url.txt" copy /Y "$(ProjectDir)installer-url.tx
     <None Include="update-url.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <!-- MSBuild Copy instead of a cmd post-build event: cmd copy fails on non-ASCII project paths. -->
+  <Target Name="CopyUpdateFiles" AfterTargets="Build">
+    <ItemGroup>
+      <UpdateFile Include="$(MSBuildThisFileDirectory)latest-version.txt;$(MSBuildThisFileDirectory)*-url.txt" />
+    </ItemGroup>
+    <Copy SourceFiles="@(UpdateFile)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
   <ImportGroup Label="ExtensionTargets" />
 </Project>

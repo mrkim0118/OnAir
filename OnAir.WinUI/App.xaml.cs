@@ -2,7 +2,7 @@ using System.Threading;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 
-namespace TechArchiveSimpleScreenRecorder.WinUI;
+namespace OnAir.WinUI;
 
 public partial class App : Application
 {

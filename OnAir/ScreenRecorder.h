@@ -8,13 +8,21 @@
 #include <string>
 #include <thread>
 
-namespace tasr {
+namespace onair {
+
+// The container is chosen by Media Foundation from the output file extension, so it must match.
+enum class OutputFormat {
+    Mp4,  // .mp4: H.264 video + AAC audio
+    Wmv,  // .wmv: WMV9 video + WMA audio
+};
 
 struct RecordingOptions {
     std::wstring outputPath;
     RECT region{};
+    OutputFormat format = OutputFormat::Mp4;
     UINT32 frameRate = 15;
     UINT32 bitRate = 8000000;
+    bool captureAudio = true;
 };
 
 class ScreenRecorder {
@@ -43,4 +51,4 @@ private:
     std::wstring lastError_;
 };
 
-}  // namespace tasr
+}  // namespace onair

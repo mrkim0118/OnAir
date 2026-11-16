@@ -9,7 +9,7 @@ using Velopack;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 
-namespace TechArchiveSimpleScreenRecorder.WinUI;
+namespace OnAir.WinUI;
 
 public sealed partial class MainWindow : Window
 {
@@ -37,7 +37,7 @@ public sealed partial class MainWindow : Window
         Closed += MainWindow_Closed;
 
         OutputPathTextBox.Text = BuildDefaultOutputPath();
-        NativeMethods.TasrSetFullRegion();
+        NativeMethods.OnAirSetFullRegion();
         RefreshRegion();
         RefreshState();
         // Disabled on startup because the installed app crashed while checking updates during launch.
@@ -52,8 +52,8 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
-        NativeMethods.TasrHideOverlay();
-        NativeMethods.TasrStopRecording();
+        NativeMethods.OnAirHideOverlay();
+        NativeMethods.OnAirStopRecording();
     }
 
     private void Timer_Tick(object? sender, object e)
@@ -86,21 +86,21 @@ public sealed partial class MainWindow : Window
 
     private void FrameButton_Click(object sender, RoutedEventArgs e)
     {
-        var overlayVisible = NativeMethods.TasrShowOverlay();
+        var overlayVisible = NativeMethods.OnAirShowOverlay();
         MessageTextBlock.Text = overlayVisible ? "Drag the red frame to set the capture area" : "Could not show the capture frame";
         RefreshRegion();
     }
 
     private void FullButton_Click(object sender, RoutedEventArgs e)
     {
-        NativeMethods.TasrSetFullRegion();
+        NativeMethods.OnAirSetFullRegion();
         RefreshRegion();
         MessageTextBlock.Text = "Capture area set to the full screen";
     }
 
     private void RecordButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!NativeMethods.TasrGetRegion(out var region))
+        if (!NativeMethods.OnAirGetRegion(out var region))
         {
             MessageTextBlock.Text = "Could not read the capture area";
             return;
@@ -112,8 +112,8 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        NativeMethods.TasrHideOverlay();
-        if (!NativeMethods.TasrStartRecording(OutputPathTextBox.Text, region, out var error))
+        NativeMethods.OnAirHideOverlay();
+        if (!NativeMethods.OnAirStartRecording(OutputPathTextBox.Text, region, out var error))
         {
             MessageTextBlock.Text = string.IsNullOrWhiteSpace(error) ? "Recording could not be started" : error;
             return;
@@ -125,14 +125,14 @@ public sealed partial class MainWindow : Window
 
     private void StopButton_Click(object sender, RoutedEventArgs e)
     {
-        NativeMethods.TasrStopRecording();
+        NativeMethods.OnAirStopRecording();
         MessageTextBlock.Text = "Recording stopped";
         RefreshState();
     }
 
     private void RefreshRegion()
     {
-        if (!NativeMethods.TasrGetRegion(out var region))
+        if (!NativeMethods.OnAirGetRegion(out var region))
         {
             return;
         }
@@ -144,7 +144,7 @@ public sealed partial class MainWindow : Window
 
     private void RefreshState()
     {
-        var isRecording = NativeMethods.TasrIsRecording();
+        var isRecording = NativeMethods.OnAirIsRecording();
         RecordButton.IsEnabled = !isRecording;
         StopButton.IsEnabled = isRecording;
         OutputPathTextBox.IsEnabled = !isRecording;
@@ -155,14 +155,14 @@ public sealed partial class MainWindow : Window
         StatusTextBlock.Text = isRecording ? "REC" : "READY";
         StatusTextBlock.Foreground = new SolidColorBrush(isRecording ? Windows.UI.Color.FromArgb(255, 226, 61, 61) : Windows.UI.Color.FromArgb(255, 255, 255, 255));
 
-        var elapsed = TimeSpan.FromSeconds(NativeMethods.TasrGetElapsedSeconds());
+        var elapsed = TimeSpan.FromSeconds(NativeMethods.OnAirGetElapsedSeconds());
         ElapsedTextBlock.Text = $"{elapsed.Minutes:00}:{elapsed.Seconds:00}";
     }
 
     private static string BuildDefaultOutputPath()
     {
         var baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
-        var targetFolder = Path.Combine(baseFolder, "Tech Archive Simple Screen Recorder");
+        var targetFolder = Path.Combine(baseFolder, "OnAir");
         var fileName = $"recording-{DateTime.Now:yyyyMMdd-HHmmss}.mp4";
         return Path.Combine(targetFolder, fileName);
     }
@@ -262,7 +262,7 @@ public sealed partial class MainWindow : Window
 
 internal static partial class NativeMethods
 {
-    private const string DllName = "TechArchiveSimpleScreenRecorder.Core.dll";
+    private const string DllName = "OnAir.Core.dll";
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct NativeRect
@@ -273,45 +273,45 @@ internal static partial class NativeMethods
         public int Bottom;
     }
 
-    [DllImport(DllName, EntryPoint = "TasrShowOverlay", CallingConvention = CallingConvention.StdCall)]
-    private static extern bool TasrShowOverlayNative();
+    [DllImport(DllName, EntryPoint = "OnAirShowOverlay", CallingConvention = CallingConvention.StdCall)]
+    private static extern bool OnAirShowOverlayNative();
 
-    [DllImport(DllName, EntryPoint = "TasrHideOverlay", CallingConvention = CallingConvention.StdCall)]
-    private static extern bool TasrHideOverlayNative();
+    [DllImport(DllName, EntryPoint = "OnAirHideOverlay", CallingConvention = CallingConvention.StdCall)]
+    private static extern bool OnAirHideOverlayNative();
 
-    [DllImport(DllName, EntryPoint = "TasrSetFullRegion", CallingConvention = CallingConvention.StdCall)]
-    private static extern bool TasrSetFullRegionNative();
+    [DllImport(DllName, EntryPoint = "OnAirSetFullRegion", CallingConvention = CallingConvention.StdCall)]
+    private static extern bool OnAirSetFullRegionNative();
 
-    [DllImport(DllName, EntryPoint = "TasrGetRegion", CallingConvention = CallingConvention.StdCall)]
-    private static extern bool TasrGetRegionNative(out NativeRect region);
+    [DllImport(DllName, EntryPoint = "OnAirGetRegion", CallingConvention = CallingConvention.StdCall)]
+    private static extern bool OnAirGetRegionNative(out NativeRect region);
 
-    [DllImport(DllName, EntryPoint = "TasrStartRecording", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
-    private static extern bool TasrStartRecordingNative(string outputPath, ref NativeRect region, StringBuilder errorBuffer, int errorBufferCount);
+    [DllImport(DllName, EntryPoint = "OnAirStartRecording", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
+    private static extern bool OnAirStartRecordingNative(string outputPath, ref NativeRect region, StringBuilder errorBuffer, int errorBufferCount);
 
-    [DllImport(DllName, EntryPoint = "TasrStopRecording", CallingConvention = CallingConvention.StdCall)]
-    private static extern void TasrStopRecordingNative();
+    [DllImport(DllName, EntryPoint = "OnAirStopRecording", CallingConvention = CallingConvention.StdCall)]
+    private static extern void OnAirStopRecordingNative();
 
-    [DllImport(DllName, EntryPoint = "TasrIsRecording", CallingConvention = CallingConvention.StdCall)]
-    private static extern bool TasrIsRecordingNative();
+    [DllImport(DllName, EntryPoint = "OnAirIsRecording", CallingConvention = CallingConvention.StdCall)]
+    private static extern bool OnAirIsRecordingNative();
 
-    [DllImport(DllName, EntryPoint = "TasrGetElapsedSeconds", CallingConvention = CallingConvention.StdCall)]
-    private static extern long TasrGetElapsedSecondsNative();
+    [DllImport(DllName, EntryPoint = "OnAirGetElapsedSeconds", CallingConvention = CallingConvention.StdCall)]
+    private static extern long OnAirGetElapsedSecondsNative();
 
-    [DllImport(DllName, EntryPoint = "TasrConsumeLastError", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
-    private static extern int TasrConsumeLastErrorNative(StringBuilder buffer, int bufferCount);
+    [DllImport(DllName, EntryPoint = "OnAirConsumeLastError", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
+    private static extern int OnAirConsumeLastErrorNative(StringBuilder buffer, int bufferCount);
 
-    internal static bool TasrShowOverlay() => TasrShowOverlayNative();
-    internal static bool TasrHideOverlay() => TasrHideOverlayNative();
-    internal static bool TasrSetFullRegion() => TasrSetFullRegionNative();
-    internal static bool TasrGetRegion(out NativeRect region) => TasrGetRegionNative(out region);
-    internal static void TasrStopRecording() => TasrStopRecordingNative();
-    internal static bool TasrIsRecording() => TasrIsRecordingNative();
-    internal static long TasrGetElapsedSeconds() => TasrGetElapsedSecondsNative();
+    internal static bool OnAirShowOverlay() => OnAirShowOverlayNative();
+    internal static bool OnAirHideOverlay() => OnAirHideOverlayNative();
+    internal static bool OnAirSetFullRegion() => OnAirSetFullRegionNative();
+    internal static bool OnAirGetRegion(out NativeRect region) => OnAirGetRegionNative(out region);
+    internal static void OnAirStopRecording() => OnAirStopRecordingNative();
+    internal static bool OnAirIsRecording() => OnAirIsRecordingNative();
+    internal static long OnAirGetElapsedSeconds() => OnAirGetElapsedSecondsNative();
 
-    internal static bool TasrStartRecording(string outputPath, NativeRect region, out string error)
+    internal static bool OnAirStartRecording(string outputPath, NativeRect region, out string error)
     {
         var buffer = new StringBuilder(1024);
-        var started = TasrStartRecordingNative(outputPath, ref region, buffer, buffer.Capacity);
+        var started = OnAirStartRecordingNative(outputPath, ref region, buffer, buffer.Capacity);
         error = buffer.ToString();
         return started;
     }
@@ -319,7 +319,7 @@ internal static partial class NativeMethods
     internal static string ConsumeLastError()
     {
         var buffer = new StringBuilder(1024);
-        TasrConsumeLastErrorNative(buffer, buffer.Capacity);
+        OnAirConsumeLastErrorNative(buffer, buffer.Capacity);
         return buffer.ToString();
     }
 }

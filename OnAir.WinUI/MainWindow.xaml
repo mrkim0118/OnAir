@@ -1,11 +1,11 @@
 <Window
-    x:Class="TechArchiveSimpleScreenRecorder.WinUI.MainWindow"
+    x:Class="OnAir.WinUI.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
-    Title="Tech Archive Simple Screen Recorder">
+    Title="OnAir">
 
     <Grid RequestedTheme="Light">
         <Grid.Background>
@@ -28,7 +28,7 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel VerticalAlignment="Center" Spacing="3">
-                <TextBlock Text="Tech Archive Simple Screen Recorder"
+                <TextBlock Text="OnAir"
                            FontSize="22"
                            FontWeight="SemiBold"
                            FontFamily="Segoe UI Variable Display Semib"
@@ -367,7 +367,7 @@
                                 CornerRadius="999"
                                 Padding="12,7"
                                 VerticalAlignment="Center">
-                            <TextBlock Text="Tech Archive"
+                            <TextBlock Text="OnAir"
                                        Foreground="{StaticResource AppMutedBrush}"
                                        FontWeight="SemiBold" />
                         </Border>

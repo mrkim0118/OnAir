@@ -14,9 +14,8 @@
 
 namespace {
 
-tasr::ScreenRecorder g_recorder;
-tasr::OverlaySelection g_overlay;
-std::atomic_bool g_shutdownFlag = false;
+onair::ScreenRecorder g_recorder;
+onair::OverlaySelection g_overlay;
 std::mutex g_errorMutex;
 std::wstring g_lastError;
 
@@ -75,26 +74,32 @@ RECT NormalizeForRecording(const RECT& input) {
 
 extern "C" {
 
-BOOL __stdcall TasrCheckForUpdatesOnce(HWND owner) {
-    tasr::CheckForUpdatesOnce(owner, g_shutdownFlag);
+BOOL __stdcall OnAirCheckForUpdatesOnce(HWND owner) {
+    const std::wstring version = onair::FindNewerVersion();
+    if (!version.empty() && onair::ConfirmUpdate(owner, version)) {
+        const std::wstring error = onair::DownloadAndStartInstaller(version);
+        if (!error.empty()) {
+            onair::ShowUpdateError(owner, error);
+        }
+    }
     return TRUE;
 }
 
-BOOL __stdcall TasrShowOverlay() {
+BOOL __stdcall OnAirShowOverlay() {
     return g_overlay.Show() ? TRUE : FALSE;
 }
 
-BOOL __stdcall TasrHideOverlay() {
+BOOL __stdcall OnAirHideOverlay() {
     g_overlay.Hide();
     return TRUE;
 }
 
-BOOL __stdcall TasrSetFullRegion() {
+BOOL __stdcall OnAirSetFullRegion() {
     g_overlay.SetFullRegion();
     return TRUE;
 }
 
-BOOL __stdcall TasrGetRegion(RECT* region) {
+BOOL __stdcall OnAirGetRegion(RECT* region) {
     if (region == nullptr) {
         return FALSE;
     }
@@ -103,7 +108,7 @@ BOOL __stdcall TasrGetRegion(RECT* region) {
     return TRUE;
 }
 
-BOOL __stdcall TasrSetRegion(const RECT* region) {
+BOOL __stdcall OnAirSetRegion(const RECT* region) {
     if (region == nullptr) {
         return FALSE;
     }
@@ -112,14 +117,14 @@ BOOL __stdcall TasrSetRegion(const RECT* region) {
     return TRUE;
 }
 
-BOOL __stdcall TasrStartRecording(const wchar_t* outputPath, const RECT* region, wchar_t* errorBuffer, int errorBufferCount) {
+BOOL __stdcall OnAirStartRecording(const wchar_t* outputPath, const RECT* region, wchar_t* errorBuffer, int errorBufferCount) {
     if (outputPath == nullptr || region == nullptr) {
         CopyMessage(L"Output path and region are required.", errorBuffer, errorBufferCount);
         return FALSE;
     }
 
     ClearLastError();
-    tasr::RecordingOptions options = {};
+    onair::RecordingOptions options = {};
     options.outputPath = outputPath;
     options.region = NormalizeForRecording(*region);
     const LONG width = options.region.right - options.region.left;
@@ -136,19 +141,19 @@ BOOL __stdcall TasrStartRecording(const wchar_t* outputPath, const RECT* region,
     return TRUE;
 }
 
-void __stdcall TasrStopRecording() {
+void __stdcall OnAirStopRecording() {
     g_recorder.Stop();
 }
 
-BOOL __stdcall TasrIsRecording() {
+BOOL __stdcall OnAirIsRecording() {
     return g_recorder.IsRecording() ? TRUE : FALSE;
 }
 
-long long __stdcall TasrGetElapsedSeconds() {
+long long __stdcall OnAirGetElapsedSeconds() {
     return static_cast<long long>(g_recorder.Elapsed().count());
 }
 
-int __stdcall TasrConsumeLastError(wchar_t* buffer, int bufferCount) {
+int __stdcall OnAirConsumeLastError(wchar_t* buffer, int bufferCount) {
     std::wstring error = g_recorder.ConsumeLastError();
     if (error.empty()) {
         error = TakeLastError();

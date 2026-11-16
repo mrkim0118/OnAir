@@ -3,11 +3,13 @@
 #include <audioclient.h>
 #include <mfapi.h>
 #include <mfidl.h>
+#include <mferror.h>
 #include <mfreadwrite.h>
 #include <mmdeviceapi.h>
 #include <windows.h>
 #include <ksmedia.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -15,8 +17,9 @@
 #include <vector>
 
 #pragma comment(lib, "Mmdevapi.lib")
+#pragma comment(lib, "Mf.lib")
 
-namespace tasr {
+namespace onair {
 namespace {
 
 template <typename T>
@@ -215,7 +218,8 @@ bool InitializeAudioCapture(AudioCaptureContext& audio, std::wstring& error) {
         return false;
     }
 
-    constexpr REFERENCE_TIME kAudioBufferDuration = 1'000'000;
+    // 1 s of headroom: the capture loop drains once per video frame, and a slow frame must not overflow the buffer.
+    constexpr REFERENCE_TIME kAudioBufferDuration = 10'000'000;
     hr = audio.audioClient->Initialize(
         AUDCLNT_SHAREMODE_SHARED,
         AUDCLNT_STREAMFLAGS_LOOPBACK,
@@ -249,8 +253,41 @@ void ReleaseAudioCapture(AudioCaptureContext& audio) {
     audio = {};
 }
 
+// The WMA encoder only accepts the exact output types it advertises; pick the best one matching the device.
+HRESULT FindWmaOutputType(const AudioFormatInfo& format, IMFMediaType** result) {
+    IMFCollection* types = nullptr;
+    HRESULT hr = MFTranscodeGetAudioOutputAvailableTypes(MFAudioFormat_WMAudioV8, MFT_ENUM_FLAG_ALL, nullptr, &types);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    DWORD count = 0;
+    types->GetElementCount(&count);
+    UINT32 bestBytesPerSecond = 0;
+    for (DWORD index = 0; index < count; ++index) {
+        IUnknown* element = nullptr;
+        IMFMediaType* type = nullptr;
+        if (SUCCEEDED(types->GetElement(index, &element)) && SUCCEEDED(element->QueryInterface(IID_PPV_ARGS(&type)))) {
+            const UINT32 channels = MFGetAttributeUINT32(type, MF_MT_AUDIO_NUM_CHANNELS, 0);
+            const UINT32 sampleRate = MFGetAttributeUINT32(type, MF_MT_AUDIO_SAMPLES_PER_SECOND, 0);
+            const UINT32 bytesPerSecond = MFGetAttributeUINT32(type, MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 0);
+            if (channels == format.outputChannels && sampleRate == format.sampleRate && bytesPerSecond > bestBytesPerSecond) {
+                SafeRelease(*result);
+                *result = type;
+                type->AddRef();
+                bestBytesPerSecond = bytesPerSecond;
+            }
+        }
+        SafeRelease(type);
+        SafeRelease(element);
+    }
+    SafeRelease(types);
+    return *result != nullptr ? S_OK : MF_E_INVALIDMEDIATYPE;
+}
+
 bool AddAudioStream(
     IMFSinkWriter* writer,
+    OutputFormat container,
     const AudioFormatInfo& format,
     DWORD& streamIndex,
     std::wstring& error) {
@@ -262,21 +299,31 @@ bool AddAudioStream(
         SafeRelease(outputType);
     };
 
-    HRESULT hr = MFCreateMediaType(&outputType);
-    if (FAILED(hr)) {
-        error = HResultMessage(L"Could not create the audio output type", hr);
-        cleanup();
-        return false;
-    }
+    HRESULT hr = S_OK;
+    if (container == OutputFormat::Wmv) {
+        hr = FindWmaOutputType(format, &outputType);
+        if (FAILED(hr)) {
+            error = HResultMessage(L"No WMA audio format matches the playback device", hr);
+            cleanup();
+            return false;
+        }
+    } else {
+        hr = MFCreateMediaType(&outputType);
+        if (FAILED(hr)) {
+            error = HResultMessage(L"Could not create the audio output type", hr);
+            cleanup();
+            return false;
+        }
 
-    outputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-    outputType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_AAC);
-    outputType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, format.outputChannels);
-    outputType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, format.sampleRate);
-    outputType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
-    outputType->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 24'000);
-    outputType->SetUINT32(MF_MT_AAC_PAYLOAD_TYPE, 0);
-    outputType->SetUINT32(MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION, 0x29);
+        outputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
+        outputType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_AAC);
+        outputType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, format.outputChannels);
+        outputType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, format.sampleRate);
+        outputType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16);
+        outputType->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 24'000);
+        outputType->SetUINT32(MF_MT_AAC_PAYLOAD_TYPE, 0);
+        outputType->SetUINT32(MF_MT_AAC_AUDIO_PROFILE_LEVEL_INDICATION, 0x29);
+    }
 
     hr = writer->AddStream(outputType, &streamIndex);
     if (FAILED(hr)) {
@@ -400,6 +447,7 @@ bool DrainAudioPackets(
     IMFSinkWriter* writer,
     DWORD streamIndex,
     AudioCaptureContext& audio,
+    UINT64 expectedFrames,
     std::vector<BYTE>& convertedBuffer,
     std::wstring& error) {
     while (true) {
@@ -411,7 +459,7 @@ bool DrainAudioPackets(
         }
 
         if (packetLength == 0) {
-            return true;
+            break;
         }
 
         BYTE* packetData = nullptr;
@@ -430,6 +478,19 @@ bool DrainAudioPackets(
             return false;
         }
     }
+
+    // Loopback delivers no packets while nothing is playing; fill the gap with silence so audio stays in sync with video.
+    const UINT64 tolerance = audio.format.sampleRate / 10;
+    if (expectedFrames > audio.framesWritten + tolerance) {
+        const auto gap = static_cast<UINT32>(std::min<UINT64>(expectedFrames - audio.framesWritten, audio.format.sampleRate * 10ULL));
+        return WriteAudioPacket(writer, streamIndex, audio, nullptr, gap, true, convertedBuffer, error);
+    }
+    return true;
+}
+
+UINT64 ElapsedAudioFrames(std::chrono::steady_clock::time_point start, UINT32 sampleRate) {
+    const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start);
+    return static_cast<UINT64>(elapsed.count()) * sampleRate / 1'000'000ULL;
 }
 
 }  // namespace
@@ -486,7 +547,8 @@ std::wstring ScreenRecorder::ConsumeLastError() {
 void ScreenRecorder::WorkerMain(RecordingOptions options) {
     std::wstring error;
     const bool success = RecordLoop(options, error);
-    if (!success && !stopRequested_.load(std::memory_order_relaxed)) {
+    // Report failures even after a stop request: a failed Finalize leaves an unplayable file.
+    if (!success) {
         StoreLastError(error.empty() ? std::wstring(L"Recording failed.") : error);
     }
     recording_.store(false, std::memory_order_relaxed);
@@ -504,6 +566,12 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
         error = L"Invalid recording size.";
         return false;
     }
+
+    // The Media Foundation H.264 encoder rejects frames above 4096x2304 (e.g. "Full" across several monitors): scale down to fit.
+    const double scale = std::min({ 1.0, 4096.0 / width, 2304.0 / height });
+    const int outWidth = std::max(2, static_cast<int>(width * scale) & ~1);
+    const int outHeight = std::max(2, static_cast<int>(height * scale) & ~1);
+    const bool scaled = outWidth != width || outHeight != height;
 
     std::error_code ec;
     const std::filesystem::path outputPath(options.outputPath);
@@ -570,9 +638,11 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
         }
     };
 
-    if (!InitializeAudioCapture(audio, error)) {
-        cleanup();
-        return false;
+    // No playback device (or an unsupported mix format) should not block recording: fall back to video only.
+    std::wstring audioError;
+    const bool hasAudio = options.captureAudio && InitializeAudioCapture(audio, audioError);
+    if (!hasAudio) {
+        ReleaseAudioCapture(audio);
     }
 
     screenDc = GetDC(nullptr);
@@ -591,8 +661,8 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
 
     BITMAPINFO bitmapInfo = {};
     bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
-    bitmapInfo.bmiHeader.biWidth = width;
-    bitmapInfo.bmiHeader.biHeight = -height;
+    bitmapInfo.bmiHeader.biWidth = outWidth;
+    bitmapInfo.bmiHeader.biHeight = -outHeight;
     bitmapInfo.bmiHeader.biPlanes = 1;
     bitmapInfo.bmiHeader.biBitCount = 32;
     bitmapInfo.bmiHeader.biCompression = BI_RGB;
@@ -606,6 +676,10 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
     }
 
     oldBitmap = SelectObject(memoryDc, bitmap);
+    if (scaled) {
+        SetStretchBltMode(memoryDc, HALFTONE);
+        SetBrushOrgEx(memoryDc, 0, 0, nullptr);
+    }
 
     HRESULT hr = MFCreateSinkWriterFromURL(options.outputPath.c_str(), nullptr, nullptr, &writer);
     if (FAILED(hr)) {
@@ -622,10 +696,10 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
     }
 
     outputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
-    outputType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_H264);
+    outputType->SetGUID(MF_MT_SUBTYPE, options.format == OutputFormat::Wmv ? MFVideoFormat_WMV3 : MFVideoFormat_H264);
     outputType->SetUINT32(MF_MT_AVG_BITRATE, options.bitRate);
     outputType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
-    MFSetAttributeSize(outputType, MF_MT_FRAME_SIZE, static_cast<UINT32>(width), static_cast<UINT32>(height));
+    MFSetAttributeSize(outputType, MF_MT_FRAME_SIZE, static_cast<UINT32>(outWidth), static_cast<UINT32>(outHeight));
     MFSetAttributeRatio(outputType, MF_MT_FRAME_RATE, options.frameRate, 1);
     MFSetAttributeRatio(outputType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
 
@@ -646,7 +720,7 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
     inputType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
     inputType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_RGB32);
     inputType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive);
-    MFSetAttributeSize(inputType, MF_MT_FRAME_SIZE, static_cast<UINT32>(width), static_cast<UINT32>(height));
+    MFSetAttributeSize(inputType, MF_MT_FRAME_SIZE, static_cast<UINT32>(outWidth), static_cast<UINT32>(outHeight));
     MFSetAttributeRatio(inputType, MF_MT_FRAME_RATE, options.frameRate, 1);
     MFSetAttributeRatio(inputType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
 
@@ -657,7 +731,7 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
         return false;
     }
 
-    if (!AddAudioStream(writer, audio.format, audioStreamIndex, error)) {
+    if (hasAudio && !AddAudioStream(writer, options.format, audio.format, audioStreamIndex, error)) {
         cleanup();
         return false;
     }
@@ -669,41 +743,39 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
         return false;
     }
 
-    hr = audio.audioClient->Start();
-    if (FAILED(hr)) {
-        cleanup();
-        error = HResultMessage(L"Could not start system audio capture", hr);
-        return false;
+    if (hasAudio) {
+        hr = audio.audioClient->Start();
+        if (FAILED(hr)) {
+            cleanup();
+            error = HResultMessage(L"Could not start system audio capture", hr);
+            return false;
+        }
+        audioStarted = true;
     }
-    audioStarted = true;
 
-    const DWORD stride = static_cast<DWORD>(width * 4);
-    const DWORD bufferSize = stride * static_cast<DWORD>(height);
+    const DWORD stride = static_cast<DWORD>(outWidth * 4);
+    const DWORD bufferSize = stride * static_cast<DWORD>(outHeight);
     const LONGLONG frameDuration = 10'000'000LL / static_cast<LONGLONG>(options.frameRate);
     const auto sleepStep = std::chrono::nanoseconds(1'000'000'000LL / static_cast<long long>(options.frameRate));
-    auto nextFrame = std::chrono::steady_clock::now();
-    LONGLONG frameTime = 0;
+    const auto captureStart = std::chrono::steady_clock::now();
+    auto nextFrame = captureStart;
 
     while (!stopRequested_.load(std::memory_order_relaxed)) {
-        if (!DrainAudioPackets(writer, audioStreamIndex, audio, audioScratch, error)) {
+        if (hasAudio && !DrainAudioPackets(writer, audioStreamIndex, audio, ElapsedAudioFrames(captureStart, audio.format.sampleRate), audioScratch, error)) {
             cleanup();
             return false;
         }
 
-        if (!BitBlt(
-                memoryDc,
-                0,
-                0,
-                width,
-                height,
-                screenDc,
-                options.region.left,
-                options.region.top,
-                SRCCOPY | CAPTUREBLT)) {
+        const BOOL captured = scaled
+            ? StretchBlt(memoryDc, 0, 0, outWidth, outHeight, screenDc, options.region.left, options.region.top, width, height, SRCCOPY | CAPTUREBLT)
+            : BitBlt(memoryDc, 0, 0, width, height, screenDc, options.region.left, options.region.top, SRCCOPY | CAPTUREBLT);
+        if (!captured) {
             cleanup();
             error = L"Could not capture the screen.";
             return false;
         }
+        // Timestamp by wall clock so slow frames do not make the video run faster than the audio.
+        const LONGLONG frameTime = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - captureStart).count() / 100;
 
         IMFMediaBuffer* buffer = nullptr;
         IMFSample* sample = nullptr;
@@ -727,9 +799,9 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
         }
 
         const auto* source = static_cast<const BYTE*>(bitmapBits);
-        for (int row = 0; row < height; ++row) {
-            const DWORD sourceOffset = static_cast<DWORD>((height - 1 - row) * width * 4);
-            const DWORD destinationOffset = static_cast<DWORD>(row * width * 4);
+        for (int row = 0; row < outHeight; ++row) {
+            const DWORD sourceOffset = static_cast<DWORD>(outHeight - 1 - row) * stride;
+            const DWORD destinationOffset = static_cast<DWORD>(row) * stride;
             CopyMemory(destination + destinationOffset, source + sourceOffset, stride);
         }
         buffer->Unlock();
@@ -757,12 +829,15 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
             return false;
         }
 
-        frameTime += frameDuration;
         nextFrame += sleepStep;
+        const auto now = std::chrono::steady_clock::now();
+        if (nextFrame < now) {
+            nextFrame = now;  // Behind schedule: drop frames instead of bursting to catch up.
+        }
         std::this_thread::sleep_until(nextFrame);
     }
 
-    if (!DrainAudioPackets(writer, audioStreamIndex, audio, audioScratch, error)) {
+    if (hasAudio && !DrainAudioPackets(writer, audioStreamIndex, audio, ElapsedAudioFrames(captureStart, audio.format.sampleRate), audioScratch, error)) {
         cleanup();
         return false;
     }
@@ -777,4 +852,4 @@ bool ScreenRecorder::RecordLoop(const RecordingOptions& options, std::wstring& e
     return true;
 }
 
-}  // namespace tasr
+}  // namespace onair

@@ -28,7 +28,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int commandShow) {
     controls.dwICC = ICC_STANDARD_CLASSES;
     InitCommonControlsEx(&controls);
 
-    tasr::MainWindow window;
+    onair::MainWindow window;
     const int exitCode = window.Run(instance, commandShow);
 
     if (shouldUninitializeCom) {

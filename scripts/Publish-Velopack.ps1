@@ -1,11 +1,11 @@
 param(
     [string]$Version = "",
-    [string]$PackId = "TechArchive.SimpleScreenRecorder",
-    [string]$PackTitle = "Tech Archive Simple Screen Recorder",
+    [string]$PackId = "OnAir",
+    [string]$PackTitle = "OnAir",
     [string]$Channel = "win",
     [string]$Runtime = "win-x64",
-    [string]$MainExe = "TechArchiveSimpleScreenRecorder.exe",
-    [string]$Authors = "TechArchive",
+    [string]$MainExe = "OnAir.exe",
+    [string]$Authors = "Manggdy",
     [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/TechArchiveSimpleScreenRecorder/",
     [string]$PublishDir = "",
     [string]$OutputDir = "",
@@ -113,8 +113,8 @@ function Invoke-NativePublish {
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Resolve-FullPath -BasePath $scriptRoot -Value ".."
-$projectDir = Resolve-FullPath -BasePath $repoRoot -Value "TechArchiveSimpleScreenRecorder"
-$solutionPath = Resolve-FullPath -BasePath $repoRoot -Value "TechArchiveSimpleScreenRecorder.sln"
+$projectDir = Resolve-FullPath -BasePath $repoRoot -Value "OnAir"
+$solutionPath = Resolve-FullPath -BasePath $repoRoot -Value "OnAir.sln"
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = Get-VersionFromFile -ProjectDir $projectDir
@@ -150,7 +150,7 @@ if (Test-Path -LiteralPath $publishDirPath) {
 
 if (-not (Test-Path -LiteralPath $releaseNotesPath)) {
     @(
-        "# Tech Archive Simple Screen Recorder $Version"
+        "# OnAir $Version"
         ""
         "- Packaged release."
     ) | Set-Content -LiteralPath $releaseNotesPath -Encoding UTF8

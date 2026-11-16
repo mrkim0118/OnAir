@@ -12,13 +12,16 @@
 #include <string_view>
 #include <vector>
 
-namespace tasr {
+namespace onair {
 namespace {
 
-constexpr wchar_t kCurrentVersion[] = L"1.2.3";
+#ifndef ONAIR_VERSION
+#error ONAIR_VERSION must be defined by the project (read from latest-version.txt).
+#endif
+constexpr wchar_t kCurrentVersion[] = L"" ONAIR_VERSION;
 constexpr wchar_t kUpdateTitle[] = L"Update Available";
 constexpr wchar_t kUpdateErrorTitle[] = L"Update Failed";
-constexpr wchar_t kDefaultInstallerFileName[] = L"TechArchive.SimpleScreenRecorder-win-Setup.exe";
+constexpr wchar_t kDefaultInstallerFileName[] = L"OnAir-win-Setup.exe";
 
 std::wstring JoinPath(const std::wstring& left, const std::wstring& right) {
     if (left.empty()) {
@@ -153,7 +156,7 @@ bool DownloadBytes(const std::wstring& url, std::vector<unsigned char>& output, 
     }
 
     const bool secure = components.nScheme == INTERNET_SCHEME_HTTPS;
-    HINTERNET session = WinHttpOpen(L"TechArchiveSimpleScreenRecorder/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    HINTERNET session = WinHttpOpen(L"OnAir/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (session == nullptr) {
         return false;
     }
@@ -301,7 +304,7 @@ std::wstring BuildTempInstallerPath(const std::wstring& version) {
         return {};
     }
 
-    std::wstring fileName = L"TechArchiveSimpleScreenRecorder-Setup-";
+    std::wstring fileName = L"OnAir-Setup-";
     fileName += SanitizeFileNamePart(version.empty() ? std::wstring(L"latest") : version);
     fileName += L".exe";
     return JoinPath(tempPath, fileName);
@@ -314,42 +317,47 @@ bool StartInstaller(HWND owner, const std::wstring& installerPath) {
 
 }  // namespace
 
-void CheckForUpdatesOnce(HWND owner, const std::atomic_bool& shutdownFlag) {
+std::wstring FindNewerVersion() {
     const std::wstring exeDir = GetExecutableDirectory();
-    if (exeDir.empty() || shutdownFlag.load(std::memory_order_relaxed)) {
-        return;
+    if (exeDir.empty()) {
+        return {};
     }
 
     std::wstring newestVersion;
     const std::wstring updateUrl = Trim(ReadTextFile(JoinPath(exeDir, L"update-url.txt")));
-    const std::wstring configuredInstallerUrl = Trim(ReadTextFile(JoinPath(exeDir, L"installer-url.txt")));
-    if (!updateUrl.empty()) {
-        DownloadText(updateUrl, newestVersion);
-    }
-
-    if (newestVersion.empty()) {
-        newestVersion = ReadTextFile(JoinPath(exeDir, L"latest-version.txt"));
+    if (updateUrl.empty() || !DownloadText(updateUrl, newestVersion)) {
+        return {};
     }
 
     newestVersion = Trim(newestVersion);
-    if (!newestVersion.empty() &&
-        !shutdownFlag.load(std::memory_order_relaxed) &&
-        CompareVersionStrings(kCurrentVersion, newestVersion) < 0) {
-        const std::wstring message = FormatUpdateMessage(kCurrentVersion, newestVersion);
-        const int response = MessageBoxW(owner, message.c_str(), kUpdateTitle, MB_YESNO | MB_ICONINFORMATION);
-        if (response == IDYES && !shutdownFlag.load(std::memory_order_relaxed)) {
-            const std::wstring installerUrl = BuildInstallerUrl(configuredInstallerUrl, updateUrl);
-            const std::wstring installerPath = BuildTempInstallerPath(newestVersion);
-            if (installerUrl.empty() || installerPath.empty() || !DownloadFile(installerUrl, installerPath)) {
-                MessageBoxW(owner, FormatDownloadFailedMessage().c_str(), kUpdateErrorTitle, MB_OK | MB_ICONERROR);
-                return;
-            }
-
-            if (!StartInstaller(owner, installerPath)) {
-                MessageBoxW(owner, FormatInstallStartFailedMessage().c_str(), kUpdateErrorTitle, MB_OK | MB_ICONERROR);
-            }
-        }
+    if (newestVersion.empty() || CompareVersionStrings(kCurrentVersion, newestVersion) >= 0) {
+        return {};
     }
+    return newestVersion;
 }
 
-}  // namespace tasr
+bool ConfirmUpdate(HWND owner, const std::wstring& version) {
+    const std::wstring message = FormatUpdateMessage(kCurrentVersion, version);
+    return MessageBoxW(owner, message.c_str(), kUpdateTitle, MB_YESNO | MB_ICONINFORMATION) == IDYES;
+}
+
+std::wstring DownloadAndStartInstaller(const std::wstring& version) {
+    const std::wstring exeDir = GetExecutableDirectory();
+    const std::wstring updateUrl = Trim(ReadTextFile(JoinPath(exeDir, L"update-url.txt")));
+    const std::wstring configuredInstallerUrl = Trim(ReadTextFile(JoinPath(exeDir, L"installer-url.txt")));
+    const std::wstring installerUrl = BuildInstallerUrl(configuredInstallerUrl, updateUrl);
+    const std::wstring installerPath = BuildTempInstallerPath(version);
+    if (installerUrl.empty() || installerPath.empty() || !DownloadFile(installerUrl, installerPath)) {
+        return FormatDownloadFailedMessage();
+    }
+    if (!StartInstaller(nullptr, installerPath)) {
+        return FormatInstallStartFailedMessage();
+    }
+    return {};
+}
+
+void ShowUpdateError(HWND owner, const std::wstring& error) {
+    MessageBoxW(owner, error.c_str(), kUpdateErrorTitle, MB_OK | MB_ICONERROR);
+}
+
+}  // namespace onair

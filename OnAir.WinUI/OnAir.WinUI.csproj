@@ -3,8 +3,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
-    <RootNamespace>TechArchiveSimpleScreenRecorder.WinUI</RootNamespace>
-    <AssemblyName>TechArchiveSimpleScreenRecorder</AssemblyName>
+    <RootNamespace>OnAir.WinUI</RootNamespace>
+    <AssemblyName>OnAir</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -25,16 +25,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\TechArchiveSimpleScreenRecorder\latest-version.txt" Link="latest-version.txt" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\TechArchiveSimpleScreenRecorder\update-url.txt" Link="update-url.txt" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\TechArchiveSimpleScreenRecorder\installer-url.txt" Link="installer-url.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\OnAir\latest-version.txt" Link="latest-version.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\OnAir\update-url.txt" Link="update-url.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\OnAir\installer-url.txt" Link="installer-url.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="CopyNativeCore" AfterTargets="Build;Publish">
     <ItemGroup>
-      <NativeArtifacts Include="..\TechArchiveSimpleScreenRecorder\build\$(Configuration)\TechArchiveSimpleScreenRecorder.Core.dll" />
-      <NativeArtifacts Include="..\TechArchiveSimpleScreenRecorder\build\$(Configuration)\TechArchiveSimpleScreenRecorder.Core.lib" Condition="Exists('..\TechArchiveSimpleScreenRecorder\build\$(Configuration)\TechArchiveSimpleScreenRecorder.Core.lib')" />
-      <NativeArtifacts Include="..\TechArchiveSimpleScreenRecorder\build\$(Configuration)\TechArchiveSimpleScreenRecorder.Core.pdb" Condition="Exists('..\TechArchiveSimpleScreenRecorder\build\$(Configuration)\TechArchiveSimpleScreenRecorder.Core.pdb')" />
+      <NativeArtifacts Include="..\OnAir\build\$(Configuration)\OnAir.Core.dll" />
+      <NativeArtifacts Include="..\OnAir\build\$(Configuration)\OnAir.Core.lib" Condition="Exists('..\OnAir\build\$(Configuration)\OnAir.Core.lib')" />
+      <NativeArtifacts Include="..\OnAir\build\$(Configuration)\OnAir.Core.pdb" Condition="Exists('..\OnAir\build\$(Configuration)\OnAir.Core.pdb')" />
       <WinUIArtifacts Include="$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\App.xbf" Condition="Exists('$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\App.xbf')" />
       <WinUIArtifacts Include="$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\MainWindow.xbf" Condition="Exists('$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\MainWindow.xbf')" />
       <WinUIArtifacts Include="$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\$(AssemblyName).pri" Condition="Exists('$(ProjectDir)bin\$(Platform)\$(Configuration)\$(TargetFramework)\$(RuntimeIdentifier)\$(AssemblyName).pri')" />

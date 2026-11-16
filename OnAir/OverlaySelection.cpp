@@ -5,10 +5,10 @@
 
 #include <algorithm>
 
-namespace tasr {
+namespace onair {
 namespace {
 
-constexpr wchar_t kOverlayClassName[] = L"TechArchiveSimpleScreenRecorderOverlayWindow";
+constexpr wchar_t kOverlayClassName[] = L"OnAirOverlayWindow";
 constexpr int kOverlayEdge = 8;
 constexpr int kOverlayBorderThickness = 6;
 constexpr COLORREF kOverlayColor = RGB(230, 54, 54);
@@ -258,4 +258,4 @@ LRESULT OverlaySelection::HandleMessage(HWND hwnd, UINT message, WPARAM wParam, 
     return DefWindowProcW(hwnd, message, wParam, lParam);
 }
 
-}  // namespace tasr
+}  // namespace onair
