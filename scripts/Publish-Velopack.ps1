@@ -9,7 +9,11 @@ param(
     [string]$DefaultUpdateSource = "https://tech.trendarchive.io/Utility/TechArchiveSimpleScreenRecorder/",
     [string]$PublishDir = "",
     [string]$OutputDir = "",
-    [string]$ReleaseNotes = ""
+    [string]$ReleaseNotes = "",
+    # Code signing: uses this certificate from Cert:\CurrentUser\My, or else the newest valid "CN=<Authors>" one.
+    [string]$SignCertThumbprint = "",
+    [switch]$NoSign,
+    [string]$TimestampUrl = "http://timestamp.digicert.com"
 )
 
 $ErrorActionPreference = "Stop"
@@ -196,6 +200,30 @@ if (-not $vpkCommand) {
     throw "The 'vpk' CLI tool is not installed."
 }
 
+$signArgs = @()
+if (-not $NoSign) {
+    $signCert = $null
+    if (-not [string]::IsNullOrWhiteSpace($SignCertThumbprint)) {
+        $signCert = Get-Item -LiteralPath "Cert:\CurrentUser\My\$SignCertThumbprint" -ErrorAction SilentlyContinue
+        if (-not $signCert) {
+            throw "Signing certificate $SignCertThumbprint was not found in Cert:\CurrentUser\My."
+        }
+    } else {
+        $now = Get-Date
+        $signCert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
+            Where-Object { $_.Subject -eq "CN=$Authors" -and $_.HasPrivateKey -and $_.NotBefore -le $now -and $_.NotAfter -gt $now } |
+            Sort-Object NotAfter -Descending |
+            Select-Object -First 1
+    }
+
+    if ($signCert) {
+        Write-Host "Signing with  : $($signCert.Subject) ($($signCert.Thumbprint))"
+        $signArgs = @("--signParams", "/sha1 $($signCert.Thumbprint) /fd sha256 /tr $TimestampUrl /td sha256")
+    } else {
+        Write-Warning "No code signing certificate for CN=$Authors was found; the release will be unsigned."
+    }
+}
+
 Write-Host "3/3 Packing Velopack release"
 & $vpkCommand.Source pack `
     --packId $PackId `
@@ -210,7 +238,8 @@ Write-Host "3/3 Packing Velopack release"
     --outputDir $outputDirPath `
     --icon $iconPath `
     --skipVeloAppCheck `
-    --shortcuts "Desktop,StartMenuRoot"
+    --shortcuts "Desktop,StartMenuRoot" `
+    @signArgs
 
 if ($LASTEXITCODE -ne 0) {
     throw "vpk pack failed."
